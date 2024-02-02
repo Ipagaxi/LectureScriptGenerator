@@ -19,19 +19,18 @@ import json
 # Dividing video into sub scenes and taking screenshots
 def scene_splitting_and_screenshot(path_to_video):
     print("Detecting scenes ...")
-    print("This may take a while ...")
     video_file = path_to_video.split(".")
     video = open_video(path_to_video)
-    scene_list = detect(path_to_video, ContentDetector(threshold=8.0, min_scene_len=90))
+    scene_list = detect(path_to_video, ContentDetector(threshold=8.0, min_scene_len=90), show_progress=True)
     num_scenes = len(scene_list)
     print("Fount %d scenes in Video!" % (num_scenes))
     print("Take scene screenshots ...")
-    save_images(scene_list=scene_list, video=video, num_images=1, output_dir="%s_screenshots" % (video_file[0]))
+    save_images(scene_list=scene_list, video=video, num_images=3, output_dir="%s_screenshots" % (video_file[0]), show_progress=True)
     print("Scene screenshots taken!")
     print("Split video ...")
     if not os.path.exists("%s_scenes" % (video_file[0])):
         os.makedirs("%s_scenes" % (video_file[0]))
-    split_video_ffmpeg(path_to_video, scene_list, output_file_template='%s_scenes/%s-Scene-$SCENE_NUMBER.%s' % (video_file[0], video_file[0], video_file[1]))
+    split_video_ffmpeg(path_to_video, scene_list, output_file_template='%s_scenes/%s-Scene-$SCENE_NUMBER.%s' % (video_file[0], video_file[0], video_file[1]), show_progress=True)
     print("Video splitted!")
     return num_scenes
 
@@ -85,7 +84,7 @@ def generatePDF(path_to_video, scene_texts):
     print("scale height: " + str(img_h))
     for i, text in enumerate(scene_texts) :
         num = str(i+1).zfill(3)
-        img = Image("%s_screenshots/%s-Scene-%s-01.jpg" % (video_file[0], video_file[0], num), width=img_w, height=img_h)
+        img = Image("%s_screenshots/%s-Scene-%s-03.jpg" % (video_file[0], video_file[0], num), width=img_w, height=img_h)
         p = Paragraph(text, style)
         Story.append(img)
         Story.append(Spacer(1,0.2*inch))
