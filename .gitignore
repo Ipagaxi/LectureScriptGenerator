@@ -1,0 +1,6 @@
+example_lec.mp4
+*.mp4
+/*_scenes/**
+/*_screenshots/**
+/*_texts/**
+*.pdf
