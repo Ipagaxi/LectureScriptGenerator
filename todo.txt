@@ -1,7 +1,0 @@
-- print -> logging
-- make passing file paths possible
-- add: pass model
-- change: take picture in the end of scene
-- change: lower scene detection threshold
-- add: try and catch error
-- make it a runnable script

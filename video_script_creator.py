@@ -1,7 +1,7 @@
 from mmap import PAGESIZE
 from os import name
 from turtle import width
-from scenedetect import detect, ContentDetector, save_images, open_video, split_video_ffmpeg
+from scenedetect import detect, AdaptiveDetector, ContentDetector, save_images, open_video, split_video_ffmpeg
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib.units import cm, inch
 from reportlab.lib.utils import ImageReader
@@ -15,13 +15,12 @@ import whisper
 import json
 
 
-
 # Dividing video into sub scenes and taking screenshots
 def scene_splitting_and_screenshot(path_to_video):
     print("Detecting scenes ...")
     video_file = path_to_video.split(".")
     video = open_video(path_to_video)
-    scene_list = detect(path_to_video, ContentDetector(threshold=8.0, min_scene_len=90), show_progress=True)
+    scene_list = detect(path_to_video, ContentDetector(threshold=7.0, min_scene_len=90), show_progress=True)
     num_scenes = len(scene_list)
     print("Fount %d scenes in Video!" % (num_scenes))
     print("Take scene screenshots ...")
@@ -34,6 +33,8 @@ def scene_splitting_and_screenshot(path_to_video):
     print("Video splitted!")
     return num_scenes
 
+
+# models: tiny, base, small, medium, large
 def transcribe_videos(model, path_to_video, num_scenes):
     print("Transcribe scenes ...")
     print("This may take a while ...")
