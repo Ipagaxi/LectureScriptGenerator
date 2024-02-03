@@ -1,5 +1,5 @@
 # LectureScriptGenerator
-Generates a pdf given an video file
+Generates a pdf from a video file
 
 ## Whisper
 Whisper form OpenAI is used for transcription
