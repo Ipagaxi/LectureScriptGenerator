@@ -10,6 +10,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.rl_config import defaultPageSize
 from reportlab.lib.styles import getSampleStyleSheet
 from faster_whisper import WhisperModel
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 import os
 import sys
 import time
@@ -25,9 +27,9 @@ def scene_splitting_and_screenshot(path_to_video):
     scene_manager = SceneManager()
     scene_manager.add_detector(ContentDetector(threshold=7.0, min_scene_len=90))
 
-    video_manager.set_downscale_factor(2)  # Process at half resolution
+    video_manager.set_downscale_factor(4)  # Process at half resolution
     video_manager.start()
-    scene_manager.detect_scenes(frame_source=video_manager)
+    scene_manager.detect_scenes(frame_source=video_manager, show_progress=True)
     scene_list = scene_manager.get_scene_list()
     num_scenes = len(scene_list)
     print("Fount %d scenes in Video!" % (num_scenes))
@@ -41,6 +43,11 @@ def scene_splitting_and_screenshot(path_to_video):
     print("Video splitted!")
     return num_scenes
 
+def transcribe_scene(file_path, model):
+    segments, info = model.transcribe(file_path)
+    joined_segments = "".join([seg.text for seg in segments])
+    print(f"Transcribed scene: {file_path}")
+    return joined_segments
 
 # models: tiny, base, small, medium, large
 def transcribe_videos(model_name, path_to_video, num_scenes):
@@ -49,18 +56,24 @@ def transcribe_videos(model_name, path_to_video, num_scenes):
     video_file = path_to_video.split(".")
     scene_texts = []
     model = WhisperModel(model_name, device="cpu", compute_type="int8")
-    for i in range(num_scenes):
+
+    num_threads = os.cpu_count()
+    transcribe_with_model = partial(transcribe_scene, model=model)
+    scene_files = [f"{video_file[0]}_scenes/{video_file[0]}-Scene-{str(i).zfill(3)}.{video_file[1]}" for i in range(1, num_scenes+1)]
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:  # use 4 threads
+        scene_texts = list(executor.map(transcribe_with_model, scene_files))
+
+    '''for i in range(num_scenes):
         num = str(i+1).zfill(3)
         segments, info = model.transcribe("%s_scenes/%s-Scene-%s.%s" % (video_file[0], video_file[0], num, video_file[1]))
+        combined_segments = "".join([seg.text for seg in segments])
         if not os.path.exists("%s_texts" % (video_file[0])):
             os.makedirs("%s_texts" % (video_file[0]))
-        combined_segments = ""
+        
         with open("%s_texts/%s-%s.txt" % (video_file[0], video_file[0], num), "w", encoding="utf-8") as f:
-            for segment in segments:
-                combined_segments += segment.text
-                f.write(segment.text)
+            f.write(combined_segments)
         scene_texts.append("%s " % (combined_segments))
-        print("%d. scene transcribed ..." % (i+1))
+        print("%d. scene transcribed ..." % (i+1))'''
     print("All scenes transcribed!")
     return scene_texts
 
@@ -108,11 +121,11 @@ path_to_video = sys.argv[1]
 whisper_model = sys.argv[2]
 video_file = path_to_video.split(".")
 num_scenes = scene_splitting_and_screenshot(path_to_video)
-if os.path.exists("%s_texts/%s-001.txt" % (video_file[0], video_file[0])):
+'''if os.path.exists("%s_texts/%s-001.txt" % (video_file[0], video_file[0])):
     print("Found existing transcripts!")
     scene_texts = load_transcripts(path_to_video, num_scenes)
-else:
-    scene_texts = transcribe_videos(whisper_model, path_to_video, num_scenes)
+else:'''
+scene_texts = transcribe_videos(whisper_model, path_to_video, num_scenes)
 generatePDF(path_to_video, scene_texts)
 end = time.time()
 print(f"Total runtime of the program is {(end - start) / 60.0} minutes")
