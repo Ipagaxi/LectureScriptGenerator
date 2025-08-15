@@ -1,7 +1,7 @@
 from mmap import PAGESIZE
 from os import name
 from turtle import width
-from scenedetect import detect, AdaptiveDetector, ContentDetector, save_images, open_video, split_video_ffmpeg
+from scenedetect import VideoManager, SceneManager, detect, AdaptiveDetector, ContentDetector, save_images, open_video, split_video_ffmpeg
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib.units import cm, inch
 from reportlab.lib.utils import ImageReader
@@ -12,8 +12,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from faster_whisper import WhisperModel
 import os
 import sys
-import whisper
-import json
+import time
 
 
 # Dividing video into sub scenes and taking screenshots
@@ -21,7 +20,15 @@ def scene_splitting_and_screenshot(path_to_video):
     print("Detecting scenes ...")
     video_file = path_to_video.split(".")
     video = open_video(path_to_video)
-    scene_list = detect(path_to_video, ContentDetector(threshold=7.0, min_scene_len=90), show_progress=True)
+
+    video_manager = VideoManager([path_to_video])
+    scene_manager = SceneManager()
+    scene_manager.add_detector(ContentDetector(threshold=7.0, min_scene_len=90))
+
+    video_manager.set_downscale_factor(2)  # Process at half resolution
+    video_manager.start()
+    scene_manager.detect_scenes(frame_source=video_manager)
+    scene_list = scene_manager.get_scene_list()
     num_scenes = len(scene_list)
     print("Fount %d scenes in Video!" % (num_scenes))
     print("Take scene screenshots ...")
@@ -36,24 +43,21 @@ def scene_splitting_and_screenshot(path_to_video):
 
 
 # models: tiny, base, small, medium, large
-def transcribe_videos(model, path_to_video, num_scenes):
+def transcribe_videos(model_name, path_to_video, num_scenes):
     print("Transcribe scenes ...")
     print("This may take a while ...")
     video_file = path_to_video.split(".")
     scene_texts = []
-    #model = whisper.load_model(model)
-    model = WhisperModel("base", device="cpu", compute_type="int8")  # int8 speeds up CPU 
+    model = WhisperModel(model_name, device="cpu", compute_type="int8")
     for i in range(num_scenes):
         num = str(i+1).zfill(3)
         segments, info = model.transcribe("%s_scenes/%s-Scene-%s.%s" % (video_file[0], video_file[0], num, video_file[1]))
-        #scene_texts.append(output.text)
         if not os.path.exists("%s_texts" % (video_file[0])):
             os.makedirs("%s_texts" % (video_file[0]))
         combined_segments = ""
         with open("%s_texts/%s-%s.txt" % (video_file[0], video_file[0], num), "w", encoding="utf-8") as f:
             for segment in segments:
                 combined_segments += segment.text
-                # Write timestamps + text
                 f.write(segment.text)
         scene_texts.append("%s " % (combined_segments))
         print("%d. scene transcribed ..." % (i+1))
@@ -67,7 +71,6 @@ def load_transcripts(path_to_video, num_scenes):
     for i in range(num_scenes) :
         num = str(i+1).zfill(3)
         f_read = open("%s_texts/%s-%s.txt" % (video_file[0], video_file[0], num))
-        #output = json.load(f_read)
         scene_texts.append(f_read.read())
         f_read.close()
         print("%d.scene transcript loaded ..." % (i))
@@ -100,7 +103,7 @@ def generatePDF(path_to_video, scene_texts):
     doc.build(Story)
     print("Generated %s.pdf successfully!" % (video_file[0]))
 
-
+start = time.time()
 path_to_video = sys.argv[1]
 whisper_model = sys.argv[2]
 video_file = path_to_video.split(".")
@@ -111,3 +114,5 @@ if os.path.exists("%s_texts/%s-001.txt" % (video_file[0], video_file[0])):
 else:
     scene_texts = transcribe_videos(whisper_model, path_to_video, num_scenes)
 generatePDF(path_to_video, scene_texts)
+end = time.time()
+print(f"Total runtime of the program is {(end - start) / 60.0} minutes")
