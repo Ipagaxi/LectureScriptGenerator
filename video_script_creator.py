@@ -9,6 +9,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.rl_config import defaultPageSize
 from reportlab.lib.styles import getSampleStyleSheet
+from faster_whisper import WhisperModel
 import os
 import sys
 import whisper
@@ -40,16 +41,21 @@ def transcribe_videos(model, path_to_video, num_scenes):
     print("This may take a while ...")
     video_file = path_to_video.split(".")
     scene_texts = []
-    model = whisper.load_model(model)
+    #model = whisper.load_model(model)
+    model = WhisperModel("base", device="cpu", compute_type="int8")  # int8 speeds up CPU 
     for i in range(num_scenes):
         num = str(i+1).zfill(3)
-        output = model.transcribe("%s_scenes/%s-Scene-%s.%s" % (video_file[0], video_file[0], num, video_file[1]))
-        scene_texts.append(output["text"])
+        segments, info = model.transcribe("%s_scenes/%s-Scene-%s.%s" % (video_file[0], video_file[0], num, video_file[1]))
+        #scene_texts.append(output.text)
         if not os.path.exists("%s_texts" % (video_file[0])):
             os.makedirs("%s_texts" % (video_file[0]))
-        f_whisper = open("%s_texts/%s-%s.txt" % (video_file[0], video_file[0], num), "w")
-        f_whisper.write(json.dumps(output))
-        f_whisper.close()
+        combined_segments = ""
+        with open("%s_texts/%s-%s.txt" % (video_file[0], video_file[0], num), "w", encoding="utf-8") as f:
+            for segment in segments:
+                combined_segments += segment.text
+                # Write timestamps + text
+                f.write(segment.text)
+        scene_texts.append("%s " % (combined_segments))
         print("%d. scene transcribed ..." % (i+1))
     print("All scenes transcribed!")
     return scene_texts
@@ -61,8 +67,8 @@ def load_transcripts(path_to_video, num_scenes):
     for i in range(num_scenes) :
         num = str(i+1).zfill(3)
         f_read = open("%s_texts/%s-%s.txt" % (video_file[0], video_file[0], num))
-        output = json.load(f_read)
-        scene_texts.append(output["text"])
+        #output = json.load(f_read)
+        scene_texts.append(f_read.read())
         f_read.close()
         print("%d.scene transcript loaded ..." % (i))
     print("All transcripts loaded!")
